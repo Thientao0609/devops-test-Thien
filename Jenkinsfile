@@ -1,70 +1,54 @@
+def notify(String msg) {
+    bat "curl -s -X POST https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage -d chat_id=%TELEGRAM_CHAT_ID% -d \"text=${msg}\" -d parse_mode=Markdown"
+}
+
 pipeline {
     agent any
 
+    triggers { githubPush() }
+
     environment {
-        // You should configure these in Jenkins credentials as Secret text
-        TELEGRAM_BOT_TOKEN = credentials('telegram_bot_token')
-        TELEGRAM_CHAT_ID = credentials('telegram_chat_id')
-        APP_URL = "http://localhost:3000" 
+        TELEGRAM_BOT_TOKEN = credentials('telegram-token')
+        TELEGRAM_CHAT_ID   = credentials('telegram-chat-id')
+        APP_URL = "http://localhost:3000"
     }
 
     stages {
         stage('Notify Start') {
             steps {
                 script {
-                    def msg = "🚀 *DEPLOY STARTED* %0AProject: devops-test %0ABranch: ${env.BRANCH_NAME} %0A"
-                    bat "curl -s -X POST https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage -d chat_id=%TELEGRAM_CHAT_ID% -d text=\"${msg}\" -d parse_mode=Markdown"
+                    notify("%%F0%%9F%%9A%%80 *DEPLOY STARTED*%%0AProject: devops-test%%0ABranch: main")
                 }
             }
         }
-        
         stage('Checkout') {
-            steps {
-                echo 'Checking out source code...'
-                checkout scm
-            }
+            steps { checkout scm }
         }
-
         stage('Install Dependencies') {
-            steps {
-                echo 'Installing dependencies...'
-                bat 'npm install'
-            }
+            steps { bat 'npm install' }
         }
-
         stage('Build') {
             steps {
-                echo 'Building project...'
-                // A simple command just to simulate a build step
-                bat 'echo "Build step completed"'
+                // nếu package.json có script build thì đổi thành: bat 'npm run build'
+                bat 'node --check src/server.js'
             }
         }
-
         stage('Deploy') {
             steps {
-                script {
-                    echo 'Deploying application...'
-                    // We use pm2 to run the Node.js server. If pm2 is not installed, install it: npm i -g pm2
-                    bat 'pm2 restart devops-test || pm2 start src/server.js --name "devops-test"'
-                }
+                bat 'pm2 restart devops-test || pm2 start src/server.js --name devops-test'
             }
         }
     }
 
     post {
-        always {
-            echo "Pipeline finished with status: ${currentBuild.currentResult}"
-        }
         success {
             script {
-                def msg = "✅ *DEPLOY SUCCESS* %0AProject: devops-test %0ABranch: ${env.BRANCH_NAME} %0AURL: ${APP_URL}"
-                bat "curl -s -X POST https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage -d chat_id=%TELEGRAM_CHAT_ID% -d text=\"${msg}\" -d parse_mode=Markdown"
+                notify("%%E2%%9C%%85 *DEPLOY SUCCESS*%%0AProject: devops-test%%0ABranch: main%%0AURL: ${env.APP_URL}")
             }
         }
         failure {
             script {
-                def msg = "❌ *DEPLOY FAILED* %0AProject: devops-test %0ABranch: ${env.BRANCH_NAME} %0APlease check Jenkins."
-                bat "curl -s -X POST https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage -d chat_id=%TELEGRAM_CHAT_ID% -d text=\"${msg}\" -d parse_mode=Markdown"
+                notify("%%E2%%9D%%8C *DEPLOY FAILED*%%0AProject: devops-test%%0ABranch: main%%0APlease check Jenkins.")
             }
         }
     }
