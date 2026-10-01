@@ -34,10 +34,14 @@ pipeline {
             }
         }
         stage('Deploy') {
-            steps {
-                bat 'pm2 restart devops-test || pm2 start src/server.js --name devops-test'
-            }
-        }
+    steps {
+        bat '''
+        pm2 delete devops-test 2>nul
+        pm2 start src/server.js --name devops-test
+        pm2 save
+        '''
+    }
+}
     }
 
     post {
